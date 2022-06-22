@@ -1,0 +1,515 @@
+---
+title: "Order Recommendation System for Instacart"
+output:
+  html_document:
+    df_print: paged
+---
+
+#### **Instacart Overview**
+
+##### **I ndustry Background**
+
+Online grocery shopping is changing the whole supermarket industry. Same-day grocery delivery
+industry is on trend and is predicted to worth $18 billion value by the end of 2018. Niche online
+grocery services are competing over conventional grocery business with its advantages such as
+convenience and selection. According to an online survey, 25% of millennials said they would pay a
+premium for same-day delivery. Grocery giants such as Amazon, Costco and Target are offering
+same-day grocery delivery service.
+
+##### **What is Instacart?**
+
+Instacart is an American company that operates as a same-day grocery on-demand delivery service
+and has its headquarter at San Francisco. Instacart’s service is mainly provided through online order
+by an app and Instacart personal shoppers simply go to a store and purchase the ordered items at a
+chosen retail. As of March 2017, Instacart services 36 markets, composed of 1,200 cities in 25
+states including California, Arizona and New York. In the same month it was valued at
+approximately $3.4 billion dollars and was considered “one of the most valuable companies in the
+America.”
+
+##### **I nstacart’s Business Model**
+
+Instacart Customers are given a decision to shop from any store that is situated nearby. Personal
+shoppers who are found nearby the store will receive the order and starts collecting items as
+mentioned in the order. Shoppers are paid hourly rate while customers are also allowed to tip the
+shoppers. Shoppers pays the bill through Instacart’s prepaid debit card which is accepted at the
+store. The shopper then goes to deliver the groceries to the customer.
+
+##### **I nstacart’s Revenue Model**
+
+Delivery charges: Delivery charges are Instacart’s fundamental profits. The charges may
+be higher if the customer requires speedier delivery or in busier circumstances. There are
+two options: Order above $35 entices a fixed delivery charge of $3.99 to $5.99; orders
+less than $35 are priced $7.99 to $9.99.
+
+  • Membership fee: Instacart also extends an annual membership scheme priced at $99 and
+is termed “Instacart Express”. Users can opt for the membership to get groceries delivered
+at no cost for the entire one year.
+  • Mark-up charges: Products sold through the Instacart platform, some are priced as the same
+as store while in some cases priced 15% higher than the retail price. The revenue generated
+through these mark-up fees goes to the Instacart wallet.
+  • First Free Delivery: Instacart hypnotizes customers with a free delivery options for users
+who chooses to use the Instacart facility app for the first time, so pretty much a smart way
+to solve the “cold start” problem and provide more incentive for new app users to place an
+order.
+
+##### **Dataset**
+
+The dataset published by Instacart itself, called “The Instacart Online Grocery Shopping Dataset
+2017”, is a relational set of files describing customers’ orders over time. The dataset is anonymized
+and contains a sample of over 3 million grocery orders from more than 200,000 Instacart users. For
+each user, between 4 and 100 of their orders are provided, with the sequence of products
+purchased in each order.
+
+The “aisles” table (Figure 1 left) shows all aisles and their unique aisle id.
+The “department” table (Figure 1 right) shows the departments and their unique department
+id.
+
+The “products” table (Figure 2) shows the products and the aisles and departments they belong
+to. It can be joined with aisles and departments table via aisle_id and department_id.
+
+The “order_products_” tables contains two sub-tables, which are order_products_prior table
+and order_products_train table. They are the most essential tables we are using for our analysis.
+They specify which products were purchased in each order and the add-to-cart order of each
+product purchased. They also contain a binary attribute ‘reordered’, with 1 indicates the customer
+has a previous order that contains the product. These tables can be connected with products table
+via product_id and with orders table via order_id.
+
+The “orders” table, which contains 3,421,083 purchasing records, tells to which evaluation set
+(prior, train, test) an order belongs. Plus the day and time an order was placed, which may help us
+determine when is the best time to send the recommendation. It is another essential table for our
+analysis.
+
+##### **Questions**
+
+Customer satisfaction is a major influence factor of customer retention rate. Most of Instacart users
+are busy people who do not have time going to grocery store on their own. By predicting which
+products an user will buy again and recommend these products to users during their shopping
+process, Instacart may offer better convenience to its users. Therefore, customer buying activities
+and satisfaction rate are both likely to increase, which not only drives to a higher revenue, but also
+more loyal customers.
+
+In this project, the core question is: Can we increase active customers and customer buying
+activities by improving the order recommendation system based on their previous orders?
+To know when and what should we recommend to each customer, we need to glean some insights
+on customers’ order placing behaviors. Therefore, we can break down the core question into the
+following sub-questions:
+
+1) When should we send our recommendation?
+
+2) How many items should our recommendation contain?
+
+3) What products should we recommend?
+
+4) Bonus: output your prediction on test dataset and show which kind of products would mostly
+reordered.
+
+*prior- purchase order in the past
+*train- the very last purchase
+*order_number: how many times this customer buy the product
+
+##### **Load Data**
+ 
+```{r}
+rm(list = ls())
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+
+
+aisles <- read.csv("dataset/aisles.csv")
+departments <- read.csv("dataset/departments.csv")
+order_products__prior <- read.csv("dataset/order_products__prior.csv")
+order_products__train <- read.csv("dataset/order_products__train.csv")
+orders <- read.csv("dataset/orders.csv")
+products <- read.csv("dataset/products.csv")
+
+
+```
+
+##### **Data Overview**
+##### **aisles**
+```{r}
+
+head(aisles)
+str(aisles)
+summary(aisles)
+
+
+```
+
+##### **Observation: 134 types of aisles**
+
+##### **departments**
+
+```{r}
+
+head(departments)
+str(departments)
+summary(departments)
+
+```
+##### **Observation: 21 department**
+
+
+##### **products**
+
+
+```{r}
+head(products)
+str(products)
+summary(products)
+```
+
+##### **Observation: 49688 products**
+
+
+
+##### **order_products__prior**
+```{r}
+
+head(order_products__train)
+str(order_products__prior)
+summary(order_products__train)
+
+```
+
+##### **Observation: 843370 orders, with max 80 add to cart order.**
+
+
+
+##### **orders**
+```{r}
+
+head(orders)
+str(orders)
+summary(orders)
+```
+##### **Observation **
+
+'order_dow' means 'order day of week', 0 stands for monday, it is not missing value
+'order hour of day', 0 stand for the first hour of a day which is 1 am
+206209 NAs' for days since prior order in table orders which count 5% of total
+evaluation set for train has 131209 sets and test for 75000 sets which we predict reordered items only for the test data set
+
+
+### Exploratory Data Analysis (EDA) ### 
+
+#####1) when do customer order
+
+
+```{r}
+
+#str(orders)
+# orders and hours distribution 
+
+p1<-orders%>% ggplot(aes(x = order_hour_of_day)) + geom_bar(stat = 'count',fill = "orange") + ylab('number of orders')+
+  scale_y_continuous(labels = scales::comma)+ggtitle('Total Number of Orders in Hour of Day') +
+  theme(plot.title = element_text(hjust = 0.5))
+p1
+
+```
+
+####Observation:
+
+**Most orders are from 8am to 18pm daily**
+
+
+```{r}
+#orders and weekdays distribution
+
+p2 <- orders %>% ggplot(aes(x = order_dow)) + 
+  geom_bar(stat = "count", fill = "orange") + ylab('number of orders') + 
+  scale_y_continuous(labels = scales::comma) +
+  ggtitle('Number of Orders in Day of Week') +
+  theme(plot.title = element_text(hjust = 0.5))
+p2
+
+```
+
+
+**Most order are amongst monday and Tuesday**
+
+```{r}
+
+# days since prior order
+
+p3 <- orders %>% filter(days_since_prior_order != '')%>%
+  ggplot(aes(x = days_since_prior_order))+
+  geom_bar(stat = "count", fill = "orange") + ylab('Number of orders') + 
+  xlab('Days since prior day')+
+  scale_y_continuous(labels = scales::comma) +
+  ggtitle('Days since Prior Order') +
+  theme(plot.title = element_text(hjust = 0.5))
+p3
+
+```
+
+**Reorder frequency shows increase trend in first 7 days, then decreases, the highest frequency of re-order is once per month and then once per once per week **
+
+
+##### Part 2: how many prior orders
+
+
+```{r}
+
+p4 <- orders%>%filter(eval_set == 'prior') %>% count(order_number) %>% 
+  ggplot(aes(order_number,n)) + geom_point(color = "blue", size = 2) +
+  ggtitle('Number of Prior Orders of Customers') + 
+  theme(plot.title = element_text(hjust = 0.5))+
+  ylab('number of customers') + xlab('nubmer of prior orders')
+
+p4
+
+
+```
+
+
+
+**the dataset include users that have 4~100 orders, we can see that there are at least 3 prior orders for each consumer**
+**the number of customer is decreasing as the order_number increase**
+
+
+
+#####5 how many items each customer buy each time?
+
+
+
+```{r}
+
+summary(order_products__prior)
+
+
+```
+
+
+```{r}
+
+##prior table
+
+p51 <- order_products__prior %>% group_by(order_id) %>%
+  summarise(number_of_items = last(add_to_cart_order)) %>%
+  ggplot(aes(x = number_of_items)) + geom_bar(stat = 'count',fill='blue') + xlim(0,80) + 
+  ggtitle('Number of Items of each Order in prior table')+
+  theme(plot.title = element_text(hjust = 0.5)) + ylab('number of orders')
+
+
+## train table
+p52 <- order_products__train %>% group_by(order_id) %>% 
+  summarise(number_of_items = last(add_to_cart_order)) %>%
+  ggplot(aes(x = number_of_items)) +
+  geom_histogram(stat = 'count', fill = 'orange') + xlim(0,80) +
+  ggtitle('Number of Items of Each Order in train table') +
+  theme(plot.title = element_text(hjust = 0.5)) + ylab('number of orders')
+grid.arrange(p51,p52,nrow=2)
+
+```
+
+
+######How many of the items are reordered?
+
+```{r}
+df6<- order_products__prior%>%group_by(reordered)%>%
+  summarise(count = n()) %>%
+  mutate(proportion = round(count/sum(count),2))
+df6
+
+
+```
+
+
+```{r}
+
+p6<-df6%>%ggplot(aes(x=reordered,y = count,fill = reordered))+geom_bar(stat = 'identity')+ theme(legend.position = "none") + 
+  scale_y_continuous(labels = scales::comma) + ylab('number of items') +
+  ggtitle('Number of Reordered Items') + # geom_col(aes(fill = reordered)) 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  geom_text(aes(label = proportion)) 
+p6 
+
+```
+
+
+**59% of the items in prior table arfe re-ordered**
+
+
+
+##Part 3: What are the popular products?
+
+```{r}
+#add to cart order : the order of the item placed in the cart
+df7 <- order_products__prior %>% group_by(product_id)%>% summarise(proportion_reordered = mean(reordered),num_of_items = n())
+df7
+
+
+```
+
+
+
+```{r}
+
+
+
+
+df71 <- df7 %>% arrange(desc(num_of_items))%>% left_join(products, by = 'product_id')%>% head(10)
+
+p7 <- df71 %>% ggplot(aes(x=reorder(product_name, -num_of_items), y=num_of_items))+
+  geom_bar(stat = 'identity', fill = "green") + scale_y_continuous(labels = scales::comma) +ylab('number of items') + theme(axis.text.x = element_text(angle = 90,hjust = 1),axis.title.x = element_blank()) + ggtitle('The Top 10 mostly Purchased Products') +  theme(plot.title = element_text(hjust = 0.5))
+p7
+```
+**Banana is the best seller**
+
+##### what product in their first choice add to cart?
+
+```{r}
+
+df8<-order_products__train%>% group_by(product_id, add_to_cart_order) %>%
+  summarise(count = n()) %>% mutate(pct = count/sum(count))
+#df8
+
+df81 <- df8 %>% filter(add_to_cart_order ==1, count>20) %>%left_join(products,by = 'product_id')%>%
+  select(product_name,pct,count) %>% arrange(desc(pct))%>%head(10)
+
+#df81
+
+p8 <- df81 %>% ggplot(aes(x=reorder(product_name,-pct), y=pct))+
+  geom_bar(stat="identity",fill="green")+
+  theme(axis.text.x=element_text(angle=90, hjust=1),axis.title.x = element_blank()) + 
+  coord_cartesian(ylim=c(0.4,0.7)) +
+  ggtitle('The Top 10 Products that are first added to cart') +
+  theme(plot.title = element_text(hjust = 0.5))
+p8
+```
+
+
+**white multifold towels have the highest percentage add to cart**
+
+
+#####  Organic food vs non-organic food
+
+
+```{r}
+library(stringr)
+
+df9<- products%>% mutate(organic = ifelse(str_detect(str_to_lower(products$product_name),'organic'),'organic','not organic'),organic = as.factor(organic))
+head(df9)
+prop.table(table(df9$organic))
+
+```
+
+**10% products are organic while 90% products are not organic**
+
+
+#####how is the re-ordered percentage of organic and non-organic product
+
+```{r}
+df10 = order_products__train %>% left_join(df9, by = 'product_id') %>% group_by(organic) %>%
+  summarise(mean_reordered = mean(reordered))
+df10 %>% ggplot(aes(x= organic,y=mean_reordered, fill = organic)) + 
+  geom_bar(stat = 'identity') +
+  geom_text(aes(label = round(mean_reordered, 2), y= mean_reordered + 0.03)) +
+  ggtitle('Reordered Percentage vs Organic') +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+####organic product has 65 percentages reordered,although organic product only counts 10 percent as total but reorder rate of organic product is much higher than non-organic 
+
+
+#####Part 4: visualizing the product portfolio
+
+#####How are aisles organized within departments?
+
+
+
+
+```{r}
+#install.packages('treemap')
+library(treemap)
+df11 <- products %>% group_by(department_id, aisle_id) %>% summarize(n=n()) %>%
+  left_join(departments,by="department_id") %>%
+  left_join(aisles,by="aisle_id")
+df11
+map1 <- order_products__prior %>% 
+  group_by(product_id) %>% 
+  summarize(count=n()) %>% 
+  left_join(products,by="product_id") %>% 
+  ungroup() %>% 
+  group_by(department_id,aisle_id) %>% 
+  summarize(sumcount = sum(count)) %>% 
+  left_join(df11, by = c("department_id", "aisle_id")) %>% 
+  mutate(onesize = 1)
+map1
+
+
+# as we can see n means how many products in one deparment one aisle.
+# sumcount means how many time the product has been ordered
+```
+
+```{r}
+treemap(map1,index=c("department","aisle"),
+        vSize="onesize",vColor="department",
+        palette="Set3",title="Aisles organized within Departments",
+        sortID="-sumcount", 
+        border.col="#FFFFFF",type="categorical", 
+        fontsize.legend = 0,bg.labels = "#FFFFFF")
+```
+
+
+#####How many unique products are offered in each department/aisle?
+
+```{r}
+treemap(df11,index=c("department","aisle"),
+        vSize="n",title="Aisles (affected by unique products number) organized within Departments",
+        palette="Set3",border.col="#FFFFFF")
+
+
+```
+
+
+#####How often are products from the department/aisle sold?
+```{r}
+treemap(map1,index=c("department","aisle"),
+        vSize="sumcount",title="Aisles (affected by products quantity sold) organized within Departments",
+        palette="Set3",border.col="#FFFFFF")
+```
+
+
+##### Main take-aways
+ 1. When to recommend:
+ - Recommend at 7 days and 30 days after previous order.
+ - Recommend at 8:45 or 1:00 when users at break.
+ - Recommend when there are discounts in markets.
+
+ 2. How many items to recommend:
+ - Mostly 4 to 7 items at a time, maximum 10.
+ - Divided into sublists for user-friendly viewing.
+
+ 3. What to recommend:
+ - Popular products based on chosen aisles and departments of users.
+ - Related or potentially-interested aisles based on his ordered items.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
